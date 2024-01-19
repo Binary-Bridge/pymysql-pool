@@ -342,7 +342,7 @@ for name, fn in inspect.getmembers(Connection, inspect.isfunction):
 
 class ConnectionPoolSingleton(ConnectionPool):
     _instance = None
-    def __new__(cls, *args, **args):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = ConnectionPool.__new__(cls)
         return cls._instance
