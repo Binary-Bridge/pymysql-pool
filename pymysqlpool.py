@@ -43,7 +43,6 @@ class Connection(pymysql.connections.Connection):
         pymysql.connections.Connection.__init__(self, *args, **kwargs)
         self.args = args
         self.kwargs = kwargs
-        #self.cursorclass = Cursor
 
     def __exit__(self, exc, value, traceback):
         """
@@ -137,7 +136,8 @@ class Cursor(pymysql.cursors.Cursor):
     def db_query(self, query, args=()):
         """
         A wrapped method of Cursor.fetchone() or Cursor.fetchall() when doing select query.
-        The outer layer of return data is always list(always use cursor.fetchall()), to display data with a unified structure.
+        The outer layer of return data is always list(always use cursor.fetchall()),
+        to display data with a unified structure.
         """
         # with self:
         try:
@@ -156,11 +156,10 @@ class Cursor(pymysql.cursors.Cursor):
         """
         # with self:
         try:
-            # cur = self.cursor()
             if not exec_many:
-                rt = self.execute(query, args)
+                self.execute(query, args)
             else:
-                rt = self.executemany(query, args)
+                self.executemany(query, args)
             return {'rowcount': self.rowcount, 'lastrowid': self.lastrowid}
         except Exception:
             raise
@@ -199,7 +198,6 @@ class ConnectionPool:
                    used for pool scalability.
             in order for the arg to work as expect:
                 you should make sure that 'con_lifetime' is less than mysql's 'wait_timeout' variable.
-            0 or negative means do not consider the lifetime
         args & kwargs:
             same as pymysql.connections.Connection()
         """
@@ -213,7 +211,9 @@ class ConnectionPool:
         self.name = name if name else '-'.join(
             [kwargs.get('host', 'localhost'), str(kwargs.get('port', 3306)),
              kwargs.get('user', ''), kwargs.get('database', '')])
-        self._created_num = deque()  # record the number of all used and available connections(use deque for thread-safe)
+
+        # record the number of all used and available connections(use deque for thread-safe)
+        self._created_num = deque()
 
         if pre_create_num > 0:
             for _ in range(self._pre_create_num):
@@ -231,7 +231,8 @@ class ConnectionPool:
         retry_interval: float
             timeout of get a connection from pool(0 means return or raise immediately)
         pre_ping: bool
-            before return a connection, send a ping command to the Mysql server, if the connection is broken, reconnect it
+            before return a connection, send a ping command to the Mysql server,
+            if the connection is broken, reconnect it
         """
         if retry_num > 10:
             retry_num = 10  # retry_num hard limit
@@ -249,15 +250,15 @@ class ConnectionPool:
                 if self.total_num < self.maxsize:
                     return self._create_connection()
                 else:
-                    raise GetConnectionFromPoolError("can't get connection from pool({}), due to pool lack.".format(self.name))
+                    raise GetConnectionFromPoolError(f"can't get connection from pool({self.name}), due to pool lack.")
 
         # check con_lifetime
         conn._returned = False
-        if self._con_lifetime > 0 and int(time.time()) - conn._create_ts >= self._con_lifetime:
+        if self._con_lifetime > 0 and time.time() - conn._create_ts >= self._con_lifetime:
             conn._pool = None
             try:
                 conn.close()
-            except:
+            except Exception:
                 conn._force_close()
             self._created_num.pop()
             logger.debug("Close connection in pool(%s) due to lifetime reached", self.name)
@@ -276,11 +277,11 @@ class ConnectionPool:
         conn.cursor().close()
         if not conn._returned:
             # consider the connection lifetime with the purpose of reduce active connections number
-            if self._con_lifetime > 0 and int(time.time()) - conn._create_ts >= self._con_lifetime:
+            if self._con_lifetime > 0 and time.time() - conn._create_ts >= self._con_lifetime:
                 conn._pool = None
                 try:
                     conn.close()
-                except:
+                except Exception:
                     conn._force_close()
                 self._created_num.pop()
                 logger.debug("Close connection in pool(%s) due to lifetime reached", self.name)
@@ -298,7 +299,7 @@ class ConnectionPool:
         conn = Connection(*self._args, **self._kwargs)
         conn._pool = self
         # add attr create timestamp for connection
-        conn._create_ts = int(time.time())
+        conn._create_ts = time.time()
         # add attr indicate whether the connection has already return to pool, should not use any more
         conn._returned = False
         self._created_num.append(1)
@@ -329,7 +330,7 @@ def already_returned_conn(f):
     def wrapper(*args, **kwargs):
         # args[0] means self(connection object)
         if hasattr(args[0], '_returned') and args[0]._returned:
-            raise ReturnConnectionToPoolError("this connection has already returned to the pool({})".format(args[0]._pool.name))
+            raise ReturnConnectionToPoolError(f"This connection has already returned to the pool({args[0]._pool.name})")
         return f(*args, **kwargs)
     return wrapper
 
@@ -341,7 +342,7 @@ for name, fn in inspect.getmembers(Connection, inspect.isfunction):
 
 class ConnectionPoolSingleton(ConnectionPool):
     _instance = None
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **args):
         if cls._instance is None:
             cls._instance = ConnectionPool.__new__(cls)
         return cls._instance
